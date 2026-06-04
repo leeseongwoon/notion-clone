@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Block, Page, PersistedState } from "@/types";
+import { computeTreeLayout } from "@/lib/blockLayout";
 
 export function createDefaultState(): PersistedState {
   const pageId = uuidv4();
@@ -34,7 +35,7 @@ export function createDefaultState(): PersistedState {
       childIds: [],
       type: "paragraph",
       content:
-        "각 줄이 독립된 블록입니다. / 로 유형을 바꾸고, Tab 으로 들여쓰기, 마크다운(#, -, >, 1.)도 지원합니다.",
+        "⠿ 핸들을 드래그해 블록을 상·하·좌·우 어디로든 옮길 수 있습니다.",
     },
     [b3]: {
       id: b3,
@@ -42,7 +43,7 @@ export function createDefaultState(): PersistedState {
       parentId: null,
       childIds: [b4, b5],
       type: "toggle",
-      content: "토글 펼치기 · 하위 블록",
+      content: "토글 · 하위 블록",
       collapsed: false,
     },
     [b4]: {
@@ -51,7 +52,7 @@ export function createDefaultState(): PersistedState {
       parentId: b3,
       childIds: [],
       type: "bullet",
-      content: "글머리 기호 블록",
+      content: "글머리 블록",
     },
     [b5]: {
       id: b5,
@@ -59,7 +60,7 @@ export function createDefaultState(): PersistedState {
       parentId: b3,
       childIds: [],
       type: "bullet",
-      content: "Enter 로 같은 목록 이어 쓰기",
+      content: "Tab 으로 들여쓰기도 가능",
     },
     [b6]: {
       id: b6,
@@ -67,15 +68,24 @@ export function createDefaultState(): PersistedState {
       parentId: null,
       childIds: [],
       type: "todo",
-      content: "할 일 블록 체크하기",
+      content: "할 일 체크",
       checked: false,
     },
   };
 
+  const rootIds = [b1, b2, b3, b6];
+  const layout = computeTreeLayout(blocks, rootIds);
+  for (const id of Object.keys(blocks)) {
+    const pos = layout[id];
+    if (pos) {
+      blocks[id] = { ...blocks[id], positionX: pos.x, positionY: pos.y };
+    }
+  }
+
   return {
     pages: { [pageId]: page },
     blocks,
-    blockIdsByPage: { [pageId]: [b1, b2, b3, b6] },
+    blockIdsByPage: { [pageId]: rootIds },
     rootPageIds: [pageId],
     expandedPageIds: [pageId],
   };

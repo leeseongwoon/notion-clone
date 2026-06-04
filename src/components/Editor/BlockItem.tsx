@@ -1,8 +1,11 @@
 "use client";
 
-import { useRef, useEffect, useState, KeyboardEvent, Fragment, CSSProperties } from "react";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useRef, useEffect, useState, KeyboardEvent, CSSProperties } from "react";
+import { useDraggable } from "@dnd-kit/core";
+import {
+  BLOCK_DEFAULT_WIDTH,
+  getBlockCollisionHeight,
+} from "@/lib/blockLayout";
 import type { Block, BlockType } from "@/types";
 import {
   BLOCK_DEF_BY_TYPE,
@@ -15,19 +18,18 @@ import {
   getSlashMenuItemCount,
   getSlashMenuItemType,
 } from "./SlashMenu";
-import { BlockList } from "./BlockList";
 import { BlockHandle } from "./BlockHandle";
 import { BlockActionMenu } from "./BlockActionMenu";
 import styles from "./BlockEditor.module.css";
 
 interface BlockItemProps {
   block: Block;
-  depth: number;
   listIndex: number;
   focusBlockId: string | null;
   onFocusBlock: (id: string | null) => void;
   menuBlockId: string | null;
   onMenuBlockIdChange: (id: string | null) => void;
+  isDragOverlay?: boolean;
 }
 
 function getBlockRowStyle(block: Block): CSSProperties {
@@ -42,12 +44,12 @@ function getEditableStyle(block: Block): CSSProperties {
 
 export function BlockItem({
   block,
-  depth,
   listIndex,
   focusBlockId,
   onFocusBlock,
   menuBlockId,
   onMenuBlockIdChange,
+  isDragOverlay = false,
 }: BlockItemProps) {
   const updateBlock = useNotionStore((s) => s.updateBlock);
   const convertBlockType = useNotionStore((s) => s.convertBlockType);
@@ -74,14 +76,36 @@ export function BlockItem({
     listeners,
     setNodeRef,
     transform,
-    transition,
     isDragging,
-  } = useSortable({ id: block.id });
+  } = useDraggable({
+    id: block.id,
+    disabled: isDragOverlay,
+  });
 
-  const sortableStyle = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  const dragX = isDragOverlay ? 0 : (transform?.x ?? 0);
+  const dragY = isDragOverlay ? 0 : (transform?.y ?? 0);
+  const slotHeight = getBlockCollisionHeight(block);
+
+  const canvasStyle: CSSProperties = isDragOverlay
+    ? {
+        position: "relative",
+        width: BLOCK_DEFAULT_WIDTH,
+        minHeight: slotHeight,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+        borderRadius: 6,
+        boxSizing: "border-box",
+      }
+    : {
+        position: "absolute",
+        left: (block.positionX ?? 0) + dragX,
+        top: (block.positionY ?? 0) + dragY,
+        width: BLOCK_DEFAULT_WIDTH,
+        maxWidth: "calc(100% - 40px)",
+        minHeight: slotHeight,
+        boxSizing: "border-box",
+        zIndex: isDragging ? 30 : 1,
+        opacity: isDragging ? 0.35 : 1,
+      };
 
   const rowStyle = getBlockRowStyle(block);
   const editableStyle = getEditableStyle(block);
@@ -273,13 +297,13 @@ export function BlockItem({
 
   if (isDivider) {
     return (
-      <>
-        <div
-          ref={setNodeRef}
-          style={{ ...sortableStyle, ...rowStyle }}
-          className={`${styles.blockRow} ${styles.dividerRow} ${hasCustomBg ? styles.hasCustomBg : ""} ${isDragging ? styles.dragging : ""}`}
-        >
-          <div className={styles.blockControls}>
+      <div
+        ref={isDragOverlay ? undefined : setNodeRef}
+        style={{ ...canvasStyle, ...rowStyle }}
+        className={`${styles.canvasBlock} ${styles.blockRow} ${styles.dividerRow} ${hasCustomBg ? styles.hasCustomBg : ""}`}
+      >
+        <div className={styles.blockControls}>
+          {!isDragOverlay && (
             <button
               type="button"
               className={styles.addBtn}
@@ -288,12 +312,12 @@ export function BlockItem({
             >
               +
             </button>
-            {renderHandle()}
-          </div>
-          <hr className={styles.divider} />
+          )}
+          {renderHandle()}
         </div>
+        <hr className={styles.divider} />
         {renderMenu()}
-      </>
+      </div>
     );
   }
 
@@ -308,13 +332,13 @@ export function BlockItem({
     .join(" ");
 
   return (
-    <Fragment>
-      <div
-        ref={setNodeRef}
-        style={{ ...sortableStyle, ...rowStyle }}
-        className={rowClass}
-      >
-        <div className={styles.blockControls}>
+    <div
+      ref={isDragOverlay ? undefined : setNodeRef}
+      style={{ ...canvasStyle, ...rowStyle }}
+      className={`${styles.canvasBlock} ${rowClass}`}
+    >
+      <div className={styles.blockControls}>
+        {!isDragOverlay && (
           <button
             type="button"
             className={styles.addBtn}
@@ -323,8 +347,9 @@ export function BlockItem({
           >
             +
           </button>
-          {renderHandle()}
-        </div>
+        )}
+        {renderHandle()}
+      </div>
 
         {block.type === "toggle" && (
           <button
@@ -381,23 +406,7 @@ export function BlockItem({
             />
           )}
         </div>
-      </div>
-
       {renderMenu()}
-
-      {block.childIds.length > 0 &&
-        (block.type !== "toggle" || !block.collapsed) && (
-          <BlockList
-            pageId={block.pageId}
-            blockIds={block.childIds}
-            parentId={block.id}
-            depth={depth + 1}
-            focusBlockId={focusBlockId}
-            onFocusBlock={onFocusBlock}
-            menuBlockId={menuBlockId}
-            onMenuBlockIdChange={onMenuBlockIdChange}
-          />
-        )}
-    </Fragment>
+    </div>
   );
 }

@@ -25,6 +25,9 @@ export interface Block {
   collapsed?: boolean;
   backgroundColor?: string | null;
   textColor?: string | null;
+  /** 캔버스 상 절대 위치 (px) */
+  positionX?: number;
+  positionY?: number;
 }
 
 export interface Page {

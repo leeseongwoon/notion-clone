@@ -2,12 +2,23 @@ import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
 import type { Block, BlockType, Page, PersistedState, SaveStatus } from "@/types";
 import { EMPTY_IDS } from "@/lib/constants";
+import type { BlockDropIntent } from "@/lib/blockDrag";
+import { isBlockDescendantOf } from "@/lib/blockDrag";
 import {
   collectDescendantBlockIds,
   getSiblingIds,
   insertAfterInList,
   removeFromSiblingList,
 } from "@/lib/blockTree";
+import {
+  applyGridDragDelta,
+  BLOCK_INDENT,
+  findFreePosition,
+  getPlacementBelowBlock,
+  initMissingGridPositions,
+  resolveNewBlockPosition,
+  snapBlockPosition,
+} from "@/lib/blockLayout";
 import { createDefaultState } from "@/lib/initialData";
 
 function getPersistedSnapshot(state: NotionStore): PersistedState {
@@ -61,8 +72,15 @@ interface NotionStore extends PersistedState {
         | "childIds"
         | "backgroundColor"
         | "textColor"
+        | "positionX"
+        | "positionY"
       >
     >
+  ) => void;
+  ensureBlockPositions: (pageId: string) => void;
+  moveBlockByDelta: (
+    blockId: string,
+    delta: { x: number; y: number }
   ) => void;
   convertBlockType: (blockId: string, type: BlockType) => void;
   duplicateBlock: (blockId: string) => string;
@@ -76,7 +94,48 @@ interface NotionStore extends PersistedState {
     activeId: string,
     overId: string
   ) => void;
+  dropBlockOnTarget: (
+    activeId: string,
+    overId: string,
+    intent: BlockDropIntent
+  ) => void;
   getBlockIds: (pageId: string) => string[];
+}
+
+function removeBlockFromParent(
+  blocks: Record<string, Block>,
+  blockIdsByPage: Record<string, string[]>,
+  blockId: string
+): { blocks: Record<string, Block>; blockIdsByPage: Record<string, string[]> } {
+  const block = blocks[blockId];
+  if (!block) return { blocks, blockIdsByPage };
+
+  if (block.parentId === null) {
+    return {
+      blocks,
+      blockIdsByPage: {
+        ...blockIdsByPage,
+        [block.pageId]: removeFromSiblingList(
+          blockIdsByPage[block.pageId] ?? [],
+          blockId
+        ),
+      },
+    };
+  }
+
+  const parent = blocks[block.parentId];
+  if (!parent) return { blocks, blockIdsByPage };
+
+  return {
+    blocks: {
+      ...blocks,
+      [block.parentId]: {
+        ...parent,
+        childIds: removeFromSiblingList(parent.childIds, blockId),
+      },
+    },
+    blockIdsByPage,
+  };
 }
 
 function removePageFromTree(
@@ -363,6 +422,16 @@ export const useNotionStore = create<NotionStore>((set, get) => {
             ? refBlock.parentId
             : null;
 
+      const rootIds = state.blockIdsByPage[pageId] ?? [];
+      const pos = resolveNewBlockPosition(
+        state.blocks,
+        pageId,
+        rootIds,
+        refBlock,
+        parentId
+      );
+      const snapped = snapBlockPosition(pos.x, pos.y);
+
       const block: Block = {
         id,
         pageId,
@@ -370,6 +439,8 @@ export const useNotionStore = create<NotionStore>((set, get) => {
         childIds: [],
         type,
         content: "",
+        positionX: snapped.x,
+        positionY: snapped.y,
         ...(type === "todo" ? { checked: false } : {}),
         ...(type === "toggle" ? { collapsed: false } : {}),
       };
@@ -415,6 +486,37 @@ export const useNotionStore = create<NotionStore>((set, get) => {
       });
     },
 
+    ensureBlockPositions: (pageId) => {
+      set((state) => {
+        const rootIds = state.blockIdsByPage[pageId] ?? [];
+        const blocks = initMissingGridPositions(
+          state.blocks,
+          pageId,
+          rootIds
+        );
+        return { blocks };
+      });
+    },
+
+    moveBlockByDelta: (blockId, delta) => {
+      if (delta.x === 0 && delta.y === 0) return;
+
+      set((state) => {
+        const block = state.blocks[blockId];
+        if (!block) return state;
+
+        const rootIds = state.blockIdsByPage[block.pageId] ?? [];
+        const blocks = applyGridDragDelta(
+          state.blocks,
+          blockId,
+          delta,
+          rootIds
+        );
+
+        return { blocks };
+      });
+    },
+
     convertBlockType: (blockId, type) => {
       set((state) => {
         const block = state.blocks[blockId];
@@ -436,15 +538,30 @@ export const useNotionStore = create<NotionStore>((set, get) => {
       if (!source) return blockId;
 
       const id = uuidv4();
+      const below = getPlacementBelowBlock(source);
       const copy: Block = {
         ...source,
         id,
         childIds: [],
         parentId: source.parentId,
+        positionX: below.x,
+        positionY: below.y,
       };
 
       set((s) => {
-        const blocks = { ...s.blocks, [id]: copy };
+        const rootIds = s.blockIdsByPage[source.pageId] ?? [];
+        const free = findFreePosition(
+          s.blocks,
+          source.pageId,
+          rootIds,
+          below,
+          [id]
+        );
+        const snapped = snapBlockPosition(free.x, free.y);
+        let blocks = {
+          ...s.blocks,
+          [id]: { ...copy, positionX: snapped.x, positionY: snapped.y },
+        };
         let blockIdsByPage = { ...s.blockIdsByPage };
 
         if (source.parentId === null) {
@@ -534,7 +651,16 @@ export const useNotionStore = create<NotionStore>((set, get) => {
           ...prev,
           childIds: [...prev.childIds, blockId],
         };
-        blocks[blockId] = { ...block, parentId: prevId };
+        const snapped = snapBlockPosition(
+          (block.positionX ?? 0) + BLOCK_INDENT,
+          block.positionY ?? 0
+        );
+        blocks[blockId] = {
+          ...block,
+          parentId: prevId,
+          positionX: snapped.x,
+          positionY: snapped.y,
+        };
 
         return { blocks, blockIdsByPage };
       });
@@ -558,7 +684,16 @@ export const useNotionStore = create<NotionStore>((set, get) => {
         };
 
         const newParentId = parent.parentId;
-        blocks[blockId] = { ...block, parentId: newParentId };
+        const snapped = snapBlockPosition(
+          Math.max(0, (block.positionX ?? 0) - BLOCK_INDENT),
+          block.positionY ?? 0
+        );
+        blocks[blockId] = {
+          ...block,
+          parentId: newParentId,
+          positionX: snapped.x,
+          positionY: snapped.y,
+        };
 
         if (newParentId === null) {
           const parentIdx = rootIds.indexOf(parent.id);
@@ -616,6 +751,104 @@ export const useNotionStore = create<NotionStore>((set, get) => {
         } else {
           const parent = blocks[parentId];
           if (parent) blocks[parentId] = { ...parent, childIds: ids };
+        }
+
+        return { blocks, blockIdsByPage };
+      });
+    },
+
+    dropBlockOnTarget: (activeId, overId, intent) => {
+      if (activeId === overId) return;
+
+      set((state) => {
+        const active = state.blocks[activeId];
+        const over = state.blocks[overId];
+        if (!active || !over || active.pageId !== over.pageId) return state;
+
+        if (intent === "outdent") {
+          if (active.parentId === null) return state;
+          const parent = state.blocks[active.parentId];
+          if (!parent) return state;
+
+          let blocks = { ...state.blocks };
+          let blockIdsByPage = { ...state.blockIdsByPage };
+          const rootIds = blockIdsByPage[active.pageId] ?? [];
+
+          blocks[active.parentId] = {
+            ...parent,
+            childIds: removeFromSiblingList(parent.childIds, activeId),
+          };
+
+          const newParentId = parent.parentId;
+          blocks[activeId] = { ...active, parentId: newParentId };
+
+          if (newParentId === null) {
+            const parentIdx = rootIds.indexOf(parent.id);
+            const nextRoot = [...rootIds];
+            nextRoot.splice(parentIdx + 1, 0, activeId);
+            blockIdsByPage[active.pageId] = nextRoot;
+          } else {
+            const grandparent = blocks[newParentId];
+            if (grandparent) {
+              const gpChildren = [...grandparent.childIds];
+              const parentIdx = gpChildren.indexOf(parent.id);
+              gpChildren.splice(parentIdx + 1, 0, activeId);
+              blocks[newParentId] = { ...grandparent, childIds: gpChildren };
+            }
+          }
+
+          return { blocks, blockIdsByPage };
+        }
+
+        if (intent === "nest") {
+          if (isBlockDescendantOf(state.blocks, activeId, overId)) return state;
+
+          let blocks = { ...state.blocks };
+          let blockIdsByPage = { ...state.blockIdsByPage };
+
+          const removed = removeBlockFromParent(blocks, blockIdsByPage, activeId);
+          blocks = removed.blocks;
+          blockIdsByPage = removed.blockIdsByPage;
+
+          const target = blocks[overId];
+          if (!target) return state;
+
+          blocks[overId] = {
+            ...target,
+            childIds: [...target.childIds, activeId],
+          };
+          blocks[activeId] = { ...active, parentId: overId };
+
+          return { blocks, blockIdsByPage };
+        }
+
+        // reorder: over와 같은 형제 목록에 놓기 (다른 깊이에서도 가능)
+        let blocks = { ...state.blocks };
+        let blockIdsByPage = { ...state.blockIdsByPage };
+
+        const removed = removeBlockFromParent(blocks, blockIdsByPage, activeId);
+        blocks = removed.blocks;
+        blockIdsByPage = removed.blockIdsByPage;
+
+        const targetParentId = over.parentId;
+        const list =
+          targetParentId === null
+            ? [...(blockIdsByPage[over.pageId] ?? [])]
+            : [...(blocks[targetParentId]?.childIds ?? [])];
+
+        const insertAt = list.indexOf(overId);
+        if (insertAt === -1) return state;
+
+        list.splice(insertAt, 0, activeId);
+        blocks[activeId] = { ...active, parentId: targetParentId };
+
+        if (targetParentId === null) {
+          blockIdsByPage[over.pageId] = list;
+        } else {
+          const parent = blocks[targetParentId];
+          if (parent) {
+            blocks[targetParentId] = { ...parent, childIds: list };
+          }
         }
 
         return { blocks, blockIdsByPage };

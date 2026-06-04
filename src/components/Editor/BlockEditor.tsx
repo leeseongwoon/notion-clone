@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { EMPTY_IDS } from "@/lib/constants";
 import { useNotionStore } from "@/store/useNotionStore";
-import { BlockList } from "./BlockList";
+import { BlockCanvas } from "./BlockCanvas";
 import styles from "./BlockEditor.module.css";
 
 interface BlockEditorProps {
@@ -12,9 +11,6 @@ interface BlockEditorProps {
 
 export function BlockEditor({ pageId }: BlockEditorProps) {
   const page = useNotionStore((s) => s.pages[pageId]);
-  const blockIds = useNotionStore(
-    (s) => s.blockIdsByPage[pageId] ?? EMPTY_IDS
-  );
   const updatePageTitle = useNotionStore((s) => s.updatePageTitle);
   const addBlock = useNotionStore((s) => s.addBlock);
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
@@ -38,11 +34,8 @@ export function BlockEditor({ pageId }: BlockEditorProps) {
         />
       </div>
 
-      <BlockList
+      <BlockCanvas
         pageId={pageId}
-        blockIds={blockIds}
-        parentId={null}
-        depth={0}
         focusBlockId={focusBlockId}
         onFocusBlock={setFocusBlockId}
         menuBlockId={menuBlockId}
