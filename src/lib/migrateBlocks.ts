@@ -12,5 +12,15 @@ export function migratePersistedState(data: PersistedState): PersistedState {
     };
   }
 
-  return { ...data, blocks };
+  const pages: PersistedState["pages"] = {};
+  for (const [id, raw] of Object.entries(data.pages)) {
+    const page = raw as PersistedState["pages"][string];
+    pages[id] = {
+      ...page,
+      parentId: page.parentId ?? null,
+      childIds: page.childIds ?? [],
+    };
+  }
+
+  return { ...data, blocks, pages };
 }

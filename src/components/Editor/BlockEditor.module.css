@@ -15,6 +15,31 @@
   align-items: flex-start;
   gap: 8px;
   margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.pageHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.securityBtn {
+  padding: 6px 10px;
+  border: 1px solid var(--border, rgba(55, 53, 47, 0.14));
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.securityBtn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
 }
 
 .pageEmoji {

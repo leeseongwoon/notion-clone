@@ -19,6 +19,13 @@ import {
   resolveNewBlockPosition,
   snapBlockPosition,
 } from "@/lib/blockLayout";
+import { hashPagePassword, verifyPagePassword } from "@/lib/pagePassword";
+import {
+  addUnlockedPageId,
+  loadUnlockedPageIds,
+  removeUnlockedPageId,
+  saveUnlockedPageIds,
+} from "@/lib/pageUnlockSession";
 import { createDefaultState } from "@/lib/initialData";
 
 function getPersistedSnapshot(state: NotionStore): PersistedState {
@@ -34,10 +41,16 @@ function getPersistedSnapshot(state: NotionStore): PersistedState {
 interface NotionStore extends PersistedState {
   hydrated: boolean;
   saveStatus: SaveStatus;
+  /** 세션 동안 잠금 해제된 페이지 (localStorage에 저장하지 않음) */
+  unlockedPageIds: string[];
   hydrate: (data: PersistedState | null) => void;
   setSaveStatus: (status: SaveStatus) => void;
   createPage: (parentId?: string | null) => string;
   updatePageTitle: (pageId: string, title: string) => void;
+  isPageLocked: (pageId: string) => boolean;
+  unlockPage: (pageId: string, password: string) => Promise<boolean>;
+  lockPage: (pageId: string) => void;
+  setPagePassword: (pageId: string, password: string | null) => Promise<void>;
   deletePage: (pageId: string) => string | null;
   toggleExpanded: (pageId: string) => void;
   reorderRootPages: (activeId: string, overId: string) => void;
@@ -215,12 +228,22 @@ export const useNotionStore = create<NotionStore>((set, get) => {
     ...defaults,
     hydrated: false,
     saveStatus: "idle",
+    unlockedPageIds: [],
 
     hydrate: (data) => {
+      const rawUnlocked = loadUnlockedPageIds();
+      const unlockedPageIds = data
+        ? rawUnlocked.filter((id) => data.pages[id]?.passwordHash)
+        : rawUnlocked;
       if (data) {
-        set({ ...data, hydrated: true, saveStatus: "saved" });
+        set({ ...data, hydrated: true, saveStatus: "saved", unlockedPageIds });
       } else {
-        set({ ...createDefaultState(), hydrated: true, saveStatus: "saved" });
+        set({
+          ...createDefaultState(),
+          hydrated: true,
+          saveStatus: "saved",
+          unlockedPageIds,
+        });
       }
     },
 
@@ -285,6 +308,58 @@ export const useNotionStore = create<NotionStore>((set, get) => {
       });
     },
 
+    isPageLocked: (pageId) => {
+      const state = get();
+      const page = state.pages[pageId];
+      if (!page?.passwordHash) return false;
+      return !state.unlockedPageIds.includes(pageId);
+    },
+
+    unlockPage: async (pageId, password) => {
+      const state = get();
+      const page = state.pages[pageId];
+      if (!page) return false;
+      if (!page.passwordHash) return true;
+
+      const ok = await verifyPagePassword(password, page.passwordHash);
+      if (!ok) return false;
+
+      set({ unlockedPageIds: addUnlockedPageId(pageId) });
+      return true;
+    },
+
+    lockPage: (pageId) => {
+      set({ unlockedPageIds: removeUnlockedPageId(pageId) });
+    },
+
+    setPagePassword: async (pageId, password) => {
+      if (password === null) {
+        set((state) => {
+          const page = state.pages[pageId];
+          if (!page) return state;
+          const { passwordHash: _removed, ...rest } = page;
+          return {
+            pages: { ...state.pages, [pageId]: rest },
+            unlockedPageIds: removeUnlockedPageId(pageId),
+          };
+        });
+        return;
+      }
+
+      const passwordHash = await hashPagePassword(password);
+      set((state) => {
+        const page = state.pages[pageId];
+        if (!page) return state;
+        return {
+          pages: {
+            ...state.pages,
+            [pageId]: { ...page, passwordHash },
+          },
+          unlockedPageIds: removeUnlockedPageId(pageId),
+        };
+      });
+    },
+
     deletePage: (pageId) => {
       const state = get();
       const allIds = [pageId, ...collectPageDescendantIds(state.pages, pageId)];
@@ -310,8 +385,14 @@ export const useNotionStore = create<NotionStore>((set, get) => {
         Object.keys(pages).find((id) => pages[id].parentId === null) ??
         null;
 
+      const unlockedPageIds = state.unlockedPageIds.filter(
+        (id) => !allIds.includes(id)
+      );
+      saveUnlockedPageIds(unlockedPageIds);
+
       set({
         ...next,
+        unlockedPageIds,
         expandedPageIds: state.expandedPageIds.filter(
           (id) => !allIds.includes(id)
         ),

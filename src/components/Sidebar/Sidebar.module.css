@@ -132,6 +132,12 @@
   white-space: nowrap;
 }
 
+.pageLockBadge {
+  flex-shrink: 0;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
 .addChildBtn {
   width: 22px;
   height: 22px;

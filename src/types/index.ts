@@ -36,6 +36,8 @@ export interface Page {
   parentId: string | null;
   childIds: string[];
   icon: string;
+  /** SHA-256 해시 — 없으면 비밀번호 미설정 */
+  passwordHash?: string;
 }
 
 export interface PersistedState {

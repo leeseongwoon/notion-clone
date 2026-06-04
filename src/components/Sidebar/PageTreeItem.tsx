@@ -96,6 +96,11 @@ export function PageTreeItem({
         <Link href={`/${pageId}`} className={styles.pageLink}>
           <span className={styles.pageIcon}>{page.icon}</span>
           <span className={styles.pageTitle}>{page.title || "제목 없음"}</span>
+          {page.passwordHash ? (
+            <span className={styles.pageLockBadge} title="비밀번호 보호">
+              🔒
+            </span>
+          ) : null}
         </Link>
         <button
           type="button"
