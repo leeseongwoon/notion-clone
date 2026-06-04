@@ -1,0 +1,167 @@
+.menu {
+  position: fixed;
+  z-index: 1000;
+  width: 280px;
+  max-height: min(70vh, 480px);
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
+  padding: 10px 0;
+}
+
+.section {
+  padding: 0 12px 8px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.colorRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.colorSwatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.colorSwatch[data-default] {
+  background: #fff;
+  position: relative;
+}
+
+.colorSwatch[data-default]::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1px dashed #ccc;
+  border-radius: 2px;
+}
+
+.textSwatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: #fff;
+}
+
+.colorActive {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
+
+.expandRow {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 4px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.expandRow:hover {
+  background: var(--hover-bg);
+}
+
+.typeList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.typeItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.typeItem:hover {
+  background: var(--hover-bg);
+}
+
+.typeActive {
+  background: var(--active-bg);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.typeIcon {
+  width: 22px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.actions {
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.actionBtn:hover {
+  background: var(--hover-bg);
+}
+
+.actionDanger:hover {
+  background: #fdebec;
+  color: #d44c47;
+}
+
+.actionIcon {
+  width: 20px;
+  text-align: center;
+}

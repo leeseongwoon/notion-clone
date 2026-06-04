@@ -1,0 +1,279 @@
+.editor {
+  flex: 1;
+  max-width: 720px;
+  /* margin: 0 auto; */
+  padding: 48px 96px 120px;
+  width: 100%;
+}
+
+.empty {
+  padding: 48px;
+  color: var(--text-muted);
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.pageEmoji {
+  font-size: 40px;
+  line-height: 1.2;
+}
+
+.pageTitleInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.2;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.pageTitleInput::placeholder {
+  color: var(--text-muted);
+}
+
+.blockList {
+  display: flex;
+  flex-direction: column;
+}
+
+.blockRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  border-radius: 4px;
+  padding: 3px 2px;
+  position: relative;
+  min-height: 28px;
+}
+
+.blockRow:not(.hasCustomBg):hover {
+  background: var(--hover-bg);
+}
+
+.blockRow.hasCustomBg:hover {
+  filter: brightness(0.97);
+}
+
+.blockRow:hover .blockControls {
+  opacity: 1;
+}
+
+.blockRow.dragging {
+  opacity: 0.5;
+  background: var(--active-bg);
+}
+
+.blockControls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 52px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+  padding-top: 4px;
+}
+
+.addBtn,
+.handleBtn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: grab;
+  font-size: 14px;
+  user-select: none;
+  padding: 0;
+  touch-action: none;
+}
+
+.addBtn {
+  cursor: pointer;
+}
+
+.addBtn:hover,
+.handleBtn:hover,
+.handleBtn.handleActive {
+  background: rgba(55, 53, 47, 0.08);
+  color: var(--text-secondary);
+}
+
+.handleBtn.handleActive {
+  background: rgba(35, 131, 226, 0.12);
+  color: var(--accent);
+}
+
+.handleDots {
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  gap: 2px;
+  padding: 2px;
+}
+
+.handleDots span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.handleBtn:hover .handleDots span,
+.handleBtn.handleActive .handleDots span {
+  opacity: 1;
+}
+
+.blockBody {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.editable {
+  min-height: 24px;
+  padding: 3px 2px;
+  outline: none;
+  line-height: 1.5;
+  color: var(--text-primary);
+  word-break: break-word;
+  font-size: 16px;
+}
+
+.editable:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.type_heading1 .editable {
+  font-size: 1.875em;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-top: 0.5em;
+}
+
+.type_heading2 .editable {
+  font-size: 1.5em;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 0.35em;
+}
+
+.type_heading3 .editable {
+  font-size: 1.25em;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 0.25em;
+}
+
+.type_quote .blockBody {
+  border-left: 3px solid var(--text-muted);
+  padding-left: 14px;
+  color: var(--text-secondary);
+}
+
+.type_code .blockBody {
+  background: #f7f6f3;
+  border-radius: 4px;
+  padding: 12px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+}
+
+.type_code .editable {
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.type_callout:not(.hasCustomBg) {
+  background: #f1f1ef;
+  border-radius: 6px;
+  padding: 12px 10px;
+  margin: 4px 0;
+}
+
+.type_callout:not(.hasCustomBg):hover {
+  background: #ebebea;
+}
+
+.type_callout.hasCustomBg {
+  border-radius: 6px;
+  padding: 12px 10px;
+  margin: 4px 0;
+}
+
+.calloutIcon {
+  padding-top: 4px;
+  flex-shrink: 0;
+}
+
+.listMarker {
+  min-width: 24px;
+  padding: 4px 4px 0 0;
+  color: var(--text-secondary);
+  text-align: right;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.toggleBtn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 2px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.todoCheck {
+  margin-top: 6px;
+  flex-shrink: 0;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.todoDone .editable {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.dividerRow {
+  padding: 8px 0;
+  align-items: center;
+}
+
+.divider {
+  flex: 1;
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0;
+}
+
+.addBlockHint {
+  margin-top: 8px;
+  padding: 4px 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.addBlockHint:hover {
+  color: var(--text-secondary);
+}

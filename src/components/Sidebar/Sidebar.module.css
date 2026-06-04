@@ -1,0 +1,154 @@
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  height: 100vh;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  padding: 16px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.logo {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.section {
+  padding: 0 10px 8px;
+}
+
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 4px 6px 8px;
+}
+
+.newPageBtn {
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.newPageBtn:hover {
+  background: var(--hover-bg);
+}
+
+.nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 6px 16px;
+}
+
+.treeItemWrap {
+  user-select: none;
+}
+
+.treeItem {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+  min-height: 30px;
+  margin-bottom: 1px;
+}
+
+.treeItem:hover {
+  background: var(--hover-bg);
+}
+
+.treeItem.active {
+  background: var(--active-bg);
+}
+
+.treeItem.dragging {
+  opacity: 0.5;
+}
+
+.expandBtn {
+  width: 20px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.dragHandle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.treeItem:hover .dragHandle {
+  opacity: 1;
+}
+
+.pageLink {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 2px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.treeItem.active .pageLink {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.pageIcon {
+  flex-shrink: 0;
+}
+
+.pageTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addChildBtn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+.treeItem:hover .addChildBtn {
+  opacity: 1;
+}
+
+.addChildBtn:hover {
+  background: var(--hover-bg);
+}
