@@ -19,11 +19,14 @@ import {
   resolveNewBlockPosition,
   snapBlockPosition,
 } from "@/lib/blockLayout";
+import {
+  computeIsPageLocked,
+  getPageLockRevokeIds,
+  getPageLockSourceId,
+} from "@/lib/pageLock";
 import { hashPagePassword, verifyPagePassword } from "@/lib/pagePassword";
 import {
-  addUnlockedPageId,
   loadUnlockedPageIds,
-  removeUnlockedPageId,
   saveUnlockedPageIds,
 } from "@/lib/pageUnlockSession";
 import { migratePersistedState } from "@/lib/migrateBlocks";
@@ -372,26 +375,39 @@ export const useNotionStore = create<NotionStore>((set, get) => {
 
     isPageLocked: (pageId) => {
       const state = get();
-      const page = state.pages[pageId];
-      if (!page?.passwordHash) return false;
-      return !state.unlockedPageIds.includes(pageId);
+      return computeIsPageLocked(state.pages, state.unlockedPageIds, pageId);
     },
 
     unlockPage: async (pageId, password) => {
       const state = get();
-      const page = state.pages[pageId];
-      if (!page) return false;
-      if (!page.passwordHash) return true;
+      const lockSourceId = getPageLockSourceId(state.pages, pageId);
+      if (!lockSourceId) return true;
 
-      const ok = await verifyPagePassword(password, page.passwordHash);
+      const lockSource = state.pages[lockSourceId];
+      if (!lockSource?.passwordHash) return true;
+
+      const ok = await verifyPagePassword(password, lockSource.passwordHash);
       if (!ok) return false;
 
-      set({ unlockedPageIds: addUnlockedPageId(pageId) });
+      set((current) => {
+        const unlockedPageIds = current.unlockedPageIds.includes(lockSourceId)
+          ? current.unlockedPageIds
+          : [...current.unlockedPageIds, lockSourceId];
+        saveUnlockedPageIds(unlockedPageIds);
+        return { unlockedPageIds };
+      });
       return true;
     },
 
     lockPage: (pageId) => {
-      set({ unlockedPageIds: removeUnlockedPageId(pageId) });
+      set((state) => {
+        const revokeIds = new Set(getPageLockRevokeIds(state.pages, pageId));
+        const unlockedPageIds = state.unlockedPageIds.filter(
+          (id) => !revokeIds.has(id)
+        );
+        saveUnlockedPageIds(unlockedPageIds);
+        return { unlockedPageIds };
+      });
     },
 
     setPagePassword: async (pageId, password) => {
@@ -400,9 +416,14 @@ export const useNotionStore = create<NotionStore>((set, get) => {
           const page = state.pages[pageId];
           if (!page) return state;
           const { passwordHash: _removed, ...rest } = page;
+          const revokeIds = new Set(getPageLockRevokeIds(state.pages, pageId));
+          const unlockedPageIds = state.unlockedPageIds.filter(
+            (id) => !revokeIds.has(id)
+          );
+          saveUnlockedPageIds(unlockedPageIds);
           return {
             pages: { ...state.pages, [pageId]: rest },
-            unlockedPageIds: removeUnlockedPageId(pageId),
+            unlockedPageIds,
           };
         });
         return;
@@ -412,12 +433,17 @@ export const useNotionStore = create<NotionStore>((set, get) => {
       set((state) => {
         const page = state.pages[pageId];
         if (!page) return state;
+        const revokeIds = new Set(getPageLockRevokeIds(state.pages, pageId));
+        const unlockedPageIds = state.unlockedPageIds.filter(
+          (id) => !revokeIds.has(id)
+        );
+        saveUnlockedPageIds(unlockedPageIds);
         return {
           pages: {
             ...state.pages,
             [pageId]: { ...page, passwordHash },
           },
-          unlockedPageIds: removeUnlockedPageId(pageId),
+          unlockedPageIds,
         };
       });
     },

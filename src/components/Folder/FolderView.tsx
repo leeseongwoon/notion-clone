@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { computeIsPageLocked, getPageSecurityBadge } from "@/lib/pageLock";
+import { useIsPageLocked } from "@/hooks/usePageLock";
+import { PageSecurityBadgeIcon } from "@/components/Page/PageSecurityBadgeIcon";
 import { useNotionStore } from "@/store/useNotionStore";
 import { getPageDisplayIcon, isFolderPage } from "@/lib/pages";
 import styles from "./FolderView.module.css";
@@ -14,6 +17,8 @@ export function FolderView({ folderId }: FolderViewProps) {
   const router = useRouter();
   const folder = useNotionStore((s) => s.pages[folderId]);
   const pages = useNotionStore((s) => s.pages);
+  const unlockedPageIds = useNotionStore((s) => s.unlockedPageIds);
+  const isFolderLocked = useIsPageLocked(folderId);
   const createPage = useNotionStore((s) => s.createPage);
   const createFolder = useNotionStore((s) => s.createFolder);
 
@@ -60,22 +65,62 @@ export function FolderView({ folderId }: FolderViewProps) {
         </div>
       ) : (
         <ul className={styles.grid}>
-          {children.map((child) => (
-            <li key={child.id}>
-              <Link href={`/${child.id}`} className={styles.card}>
-                <span className={styles.cardIcon} aria-hidden>
-                  {getPageDisplayIcon(child)}
-                </span>
-                <span className={styles.cardTitle}>
-                  {child.title || "제목 없음"}
-                </span>
-                <span className={styles.cardType}>
-                  {isFolderPage(child) ? "폴더" : "페이지"}
-                  {child.passwordHash ? " · 🔒" : ""}
-                </span>
-              </Link>
-            </li>
-          ))}
+          {children.map((child) => {
+            const childLocked =
+              isFolderLocked ||
+              computeIsPageLocked(pages, unlockedPageIds, child.id);
+            const securityBadge = getPageSecurityBadge(
+              pages,
+              unlockedPageIds,
+              child.id
+            );
+
+            return (
+              <li key={child.id}>
+                {childLocked ? (
+                  <button
+                    type="button"
+                    className={`${styles.card} ${styles.cardLocked}`}
+                    onClick={() => router.push(`/${child.id}`)}
+                  >
+                    <span className={styles.cardIcon} aria-hidden>
+                      {getPageDisplayIcon(child)}
+                    </span>
+                    <span className={styles.cardTitle}>
+                      {child.title || "제목 없음"}
+                    </span>
+                    <span className={styles.cardType}>
+                      {isFolderPage(child) ? "폴더" : "페이지"}
+                      {securityBadge ? (
+                        <PageSecurityBadgeIcon
+                          badge={securityBadge}
+                          className={styles.cardBadge}
+                        />
+                      ) : null}
+                    </span>
+                  </button>
+                ) : (
+                  <Link href={`/${child.id}`} className={styles.card}>
+                    <span className={styles.cardIcon} aria-hidden>
+                      {getPageDisplayIcon(child)}
+                    </span>
+                    <span className={styles.cardTitle}>
+                      {child.title || "제목 없음"}
+                    </span>
+                    <span className={styles.cardType}>
+                      <span>{isFolderPage(child) ? "폴더" : "페이지"}</span>
+                      {securityBadge ? (
+                        <PageSecurityBadgeIcon
+                          badge={securityBadge}
+                          className={styles.cardBadge}
+                        />
+                      ) : null}
+                    </span>
+                  </Link>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

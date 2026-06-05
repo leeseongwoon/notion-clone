@@ -210,3 +210,10 @@
   font-size: 13px;
   color: #c62828;
 }
+
+.panelActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}

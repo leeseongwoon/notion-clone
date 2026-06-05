@@ -76,6 +76,17 @@
   border-color: rgba(55, 53, 47, 0.2);
 }
 
+.cardLocked {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.cardLocked:hover {
+  opacity: 1;
+}
+
 .cardIcon {
   font-size: 28px;
   line-height: 1;
@@ -91,6 +102,14 @@
 }
 
 .cardType {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.cardBadge {
+  margin-left: auto;
 }

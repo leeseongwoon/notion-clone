@@ -5,8 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { usePageSecurityBadge } from "@/hooks/usePageLock";
+import { PageSecurityBadgeIcon } from "@/components/Page/PageSecurityBadgeIcon";
 import { getPageDisplayIcon, isFolderPage } from "@/lib/pages";
 import { useNotionStore } from "@/store/useNotionStore";
+import { PageDeleteConfirm } from "@/components/Page/PageDeleteConfirm";
 import { useFolderDropTarget } from "./PageSidebarDropContext";
 import styles from "./Sidebar.module.css";
 
@@ -23,14 +26,19 @@ export function PageTreeItem({
 }: PageTreeItemProps) {
   const router = useRouter();
   const page = useNotionStore((s) => s.pages[pageId]);
+  const securityBadge = usePageSecurityBadge(pageId);
   const expandedPageIds = useNotionStore((s) => s.expandedPageIds);
   const toggleExpanded = useNotionStore((s) => s.toggleExpanded);
   const createPage = useNotionStore((s) => s.createPage);
   const createFolder = useNotionStore((s) => s.createFolder);
+  const deletePage = useNotionStore((s) => s.deletePage);
 
   const isDropTarget = useFolderDropTarget(pageId);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [pageMenuOpen, setPageMenuOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  const pageMenuRef = useRef<HTMLDivElement>(null);
 
   const {
     attributes,
@@ -42,7 +50,7 @@ export function PageTreeItem({
   } = useSortable({ id: pageId });
 
   useEffect(() => {
-    if (!addMenuOpen) return;
+    if (!addMenuOpen && !pageMenuOpen) return;
     const close = (e: MouseEvent) => {
       if (
         addMenuRef.current &&
@@ -50,10 +58,16 @@ export function PageTreeItem({
       ) {
         setAddMenuOpen(false);
       }
+      if (
+        pageMenuRef.current &&
+        !pageMenuRef.current.contains(e.target as Node)
+      ) {
+        setPageMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
-  }, [addMenuOpen]);
+  }, [addMenuOpen, pageMenuOpen]);
 
   if (!page) return null;
 
@@ -79,6 +93,18 @@ export function PageTreeItem({
     const id = createFolder(pageId);
     setAddMenuOpen(false);
     router.push(`/${id}`);
+  };
+
+  const handleDeletePage = () => {
+    const fallback = deletePage(pageId);
+    setDeleteOpen(false);
+    setPageMenuOpen(false);
+    if (activePageId !== pageId) return;
+    if (fallback) {
+      router.push(`/${fallback}`);
+    } else {
+      router.push("/");
+    }
   };
 
   return (
@@ -118,17 +144,18 @@ export function PageTreeItem({
           >
             {page.title || (isFolder ? "새 폴더" : "제목 없음")}
           </span>
-          {page.passwordHash ? (
-            <span className={styles.pageLockBadge} title="비밀번호 보호">
-              🔒
-            </span>
+          {securityBadge ? (
+            <PageSecurityBadgeIcon badge={securityBadge} />
           ) : null}
         </Link>
         <div className={styles.addChildWrap} ref={addMenuRef}>
           <button
             type="button"
             className={styles.addChildBtn}
-            onClick={() => setAddMenuOpen((o) => !o)}
+            onClick={() => {
+              setPageMenuOpen(false);
+              setAddMenuOpen((o) => !o);
+            }}
             title="하위에 추가"
             aria-expanded={addMenuOpen}
           >
@@ -145,6 +172,34 @@ export function PageTreeItem({
             </div>
           ) : null}
         </div>
+        <div className={styles.pageMenuWrap} ref={pageMenuRef}>
+          <button
+            type="button"
+            className={styles.pageMenuBtn}
+            onClick={() => {
+              setAddMenuOpen(false);
+              setPageMenuOpen((o) => !o);
+            }}
+            title="페이지 메뉴"
+            aria-expanded={pageMenuOpen}
+          >
+            ⋯
+          </button>
+          {pageMenuOpen ? (
+            <div className={styles.addChildMenu}>
+              <button
+                type="button"
+                className={styles.menuDanger}
+                onClick={() => {
+                  setPageMenuOpen(false);
+                  setDeleteOpen(true);
+                }}
+              >
+                🗑 삭제
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
       {isExpanded && page.childIds.length > 0
         ? page.childIds.map((childId) => (
@@ -156,6 +211,14 @@ export function PageTreeItem({
             />
           ))
         : null}
+
+      {deleteOpen ? (
+        <PageDeleteConfirm
+          pageId={pageId}
+          onClose={() => setDeleteOpen(false)}
+          onConfirm={handleDeletePage}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,9 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { getPageLockSourceId, isPageLockInherited } from "@/lib/pageLock";
+import { isFolderPage } from "@/lib/pages";
+import { useIsPageLocked } from "@/hooks/usePageLock";
 import { useNotionStore } from "@/store/useNotionStore";
 import styles from "./PageLock.module.css";
 
@@ -11,8 +14,13 @@ interface PageLockGateProps {
 
 export function PageLockGate({ pageId, children }: PageLockGateProps) {
   const page = useNotionStore((s) => s.pages[pageId]);
-  const isPageLocked = useNotionStore((s) => s.isPageLocked(pageId));
+  const pages = useNotionStore((s) => s.pages);
+  const isPageLocked = useIsPageLocked(pageId);
   const unlockPage = useNotionStore((s) => s.unlockPage);
+
+  const lockSourceId = getPageLockSourceId(pages, pageId);
+  const lockSource = lockSourceId ? pages[lockSourceId] : null;
+  const inheritedLock = isPageLockInherited(pages, pageId);
 
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +53,11 @@ export function PageLockGate({ pageId, children }: PageLockGateProps) {
         </span>
         <h2 className={styles.lockTitle}>{page.title || "제목 없음"}</h2>
         <p className={styles.lockDesc}>
-          이 페이지는 비밀번호로 보호됩니다. 편집하려면 비밀번호를 입력하세요.
+          {inheritedLock && lockSource
+            ? `상위 ${isFolderPage(lockSource) ? "폴더" : "페이지"} 「${
+                lockSource.title || (isFolderPage(lockSource) ? "새 폴더" : "제목 없음")
+              }」이(가) 비밀번호로 보호됩니다. 편집하려면 비밀번호를 입력하세요.`
+            : "이 페이지는 비밀번호로 보호됩니다. 편집하려면 비밀번호를 입력하세요."}
         </p>
         <form className={styles.lockForm} onSubmit={handleSubmit}>
           <input
