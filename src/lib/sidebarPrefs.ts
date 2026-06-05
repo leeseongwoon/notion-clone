@@ -1,5 +1,5 @@
 export const SIDEBAR_WIDTH_MIN = 200;
-export const SIDEBAR_WIDTH_MAX = 420;
+export const SIDEBAR_WIDTH_MAX = 600;
 export const SIDEBAR_WIDTH_DEFAULT = 260;
 
 const STORAGE_KEY = "notion-clone-sidebar";
