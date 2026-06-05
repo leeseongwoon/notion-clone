@@ -36,6 +36,8 @@ export interface Page {
   parentId: string | null;
   childIds: string[];
   icon: string;
+  /** true면 폴더(그룹) — 블록 없음, 하위 페이지만 */
+  isFolder?: boolean;
   /** SHA-256 해시 — 없으면 비밀번호 미설정 */
   passwordHash?: string;
 }

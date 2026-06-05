@@ -10,9 +10,10 @@ export function useHydrateStore() {
   const hydrated = useNotionStore((s) => s.hydrated);
 
   useEffect(() => {
+    if (hydrated) return;
     const raw = loadFromStorage();
     hydrate(raw ? migratePersistedState(raw) : null);
-  }, [hydrate]);
+  }, [hydrate, hydrated]);
 
   return hydrated;
 }

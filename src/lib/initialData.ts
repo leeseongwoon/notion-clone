@@ -3,6 +3,8 @@ import type { Block, Page, PersistedState } from "@/types";
 import { computeTreeLayout } from "@/lib/blockLayout";
 
 export function createDefaultState(): PersistedState {
+  const folderId = uuidv4();
+  const samplePageId = uuidv4();
   const pageId = uuidv4();
   const b1 = uuidv4();
   const b2 = uuidv4();
@@ -10,6 +12,25 @@ export function createDefaultState(): PersistedState {
   const b4 = uuidv4();
   const b5 = uuidv4();
   const b6 = uuidv4();
+
+  const folder: Page = {
+    id: folderId,
+    title: "프로젝트",
+    parentId: null,
+    childIds: [samplePageId],
+    icon: "📁",
+    isFolder: true,
+  };
+
+  const samplePage: Page = {
+    id: samplePageId,
+    title: "샘플 노트",
+    parentId: folderId,
+    childIds: [],
+    icon: "📄",
+  };
+
+  const sampleBlockId = uuidv4();
 
   const page: Page = {
     id: pageId,
@@ -82,11 +103,37 @@ export function createDefaultState(): PersistedState {
     }
   }
 
+  const sampleBlocks: Record<string, Block> = {
+    [sampleBlockId]: {
+      id: sampleBlockId,
+      pageId: samplePageId,
+      parentId: null,
+      childIds: [],
+      type: "paragraph",
+      content: "폴더 안에 있는 페이지 예시입니다.",
+    },
+  };
+
+  const allBlocks = { ...blocks, ...sampleBlocks };
+  const sampleLayout = computeTreeLayout(allBlocks, [sampleBlockId]);
+  for (const [id, pos] of Object.entries(sampleLayout)) {
+    const b = allBlocks[id];
+    if (b) allBlocks[id] = { ...b, positionX: pos.x, positionY: pos.y };
+  }
+
   return {
-    pages: { [pageId]: page },
-    blocks,
-    blockIdsByPage: { [pageId]: rootIds },
-    rootPageIds: [pageId],
-    expandedPageIds: [pageId],
+    pages: {
+      [folderId]: folder,
+      [samplePageId]: samplePage,
+      [pageId]: page,
+    },
+    blocks: allBlocks,
+    blockIdsByPage: {
+      [folderId]: [],
+      [samplePageId]: [sampleBlockId],
+      [pageId]: rootIds,
+    },
+    rootPageIds: [folderId, pageId],
+    expandedPageIds: [folderId, pageId],
   };
 }

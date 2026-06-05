@@ -1,4 +1,5 @@
 import type { Block, PersistedState } from "@/types";
+import { sanitizePersistedState } from "@/lib/pages";
 
 export function migratePersistedState(data: PersistedState): PersistedState {
   const blocks: Record<string, Block> = {};
@@ -22,5 +23,5 @@ export function migratePersistedState(data: PersistedState): PersistedState {
     };
   }
 
-  return { ...data, blocks, pages };
+  return sanitizePersistedState({ ...data, blocks, pages });
 }

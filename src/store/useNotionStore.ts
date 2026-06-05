@@ -26,7 +26,14 @@ import {
   removeUnlockedPageId,
   saveUnlockedPageIds,
 } from "@/lib/pageUnlockSession";
+import { migratePersistedState } from "@/lib/migrateBlocks";
+import { resolveSidebarPageDrop } from "@/lib/pageTreeDnD";
+import { saveToStorage } from "@/lib/storage";
 import { createDefaultState } from "@/lib/initialData";
+
+function persistStoreNow(): void {
+  saveToStorage(getPersistedSnapshot(useNotionStore.getState()));
+}
 
 function getPersistedSnapshot(state: NotionStore): PersistedState {
   return {
@@ -46,6 +53,7 @@ interface NotionStore extends PersistedState {
   hydrate: (data: PersistedState | null) => void;
   setSaveStatus: (status: SaveStatus) => void;
   createPage: (parentId?: string | null) => string;
+  createFolder: (parentId?: string | null) => string;
   updatePageTitle: (pageId: string, title: string) => void;
   isPageLocked: (pageId: string) => boolean;
   unlockPage: (pageId: string, password: string) => Promise<boolean>;
@@ -64,6 +72,7 @@ interface NotionStore extends PersistedState {
     newParentId: string | null,
     index: number
   ) => void;
+  dragPageInSidebar: (activeId: string, overId: string) => void;
   addBlock: (
     pageId: string,
     options?: {
@@ -231,12 +240,20 @@ export const useNotionStore = create<NotionStore>((set, get) => {
     unlockedPageIds: [],
 
     hydrate: (data) => {
+      if (get().hydrated) return;
+
       const rawUnlocked = loadUnlockedPageIds();
       const unlockedPageIds = data
         ? rawUnlocked.filter((id) => data.pages[id]?.passwordHash)
         : rawUnlocked;
       if (data) {
-        set({ ...data, hydrated: true, saveStatus: "saved", unlockedPageIds });
+        const migrated = migratePersistedState(data);
+        set({
+          ...migrated,
+          hydrated: true,
+          saveStatus: "saved",
+          unlockedPageIds,
+        });
       } else {
         set({
           ...createDefaultState(),
@@ -295,6 +312,51 @@ export const useNotionStore = create<NotionStore>((set, get) => {
         };
       });
 
+      persistStoreNow();
+      return id;
+    },
+
+    createFolder: (parentId = null) => {
+      const id = uuidv4();
+      const page: Page = {
+        id,
+        title: "새 폴더",
+        parentId,
+        childIds: [],
+        icon: "📁",
+        isFolder: true,
+      };
+
+      set((state) => {
+        const pages = { ...state.pages, [id]: page };
+        let rootPageIds = [...state.rootPageIds];
+        let expandedPageIds = [...state.expandedPageIds];
+
+        if (parentId && pages[parentId]) {
+          pages[parentId] = {
+            ...pages[parentId],
+            childIds: [...pages[parentId].childIds, id],
+          };
+          if (!expandedPageIds.includes(parentId)) {
+            expandedPageIds = [...expandedPageIds, parentId];
+          }
+        } else {
+          rootPageIds = [...rootPageIds, id];
+        }
+
+        if (!expandedPageIds.includes(id)) {
+          expandedPageIds = [...expandedPageIds, id];
+        }
+
+        return {
+          pages,
+          rootPageIds,
+          expandedPageIds,
+          blockIdsByPage: { ...state.blockIdsByPage, [id]: [] },
+        };
+      });
+
+      persistStoreNow();
       return id;
     },
 
@@ -488,6 +550,44 @@ export const useNotionStore = create<NotionStore>((set, get) => {
         pages[pageId] = updated;
         return { pages, rootPageIds };
       });
+      persistStoreNow();
+    },
+
+    dragPageInSidebar: (activeId, overId) => {
+      const state = get();
+      const action = resolveSidebarPageDrop(
+        state.pages,
+        state.rootPageIds,
+        activeId,
+        overId
+      );
+
+      switch (action.type) {
+        case "into-folder":
+          get().movePageToParent(activeId, action.folderId, action.index);
+          break;
+        case "reorder-root":
+          get().reorderRootPages(action.activeId, action.overId);
+          persistStoreNow();
+          break;
+        case "reorder-child":
+          get().reorderChildPages(
+            action.parentId,
+            action.activeId,
+            action.overId
+          );
+          persistStoreNow();
+          break;
+        case "move-to-parent":
+          get().movePageToParent(
+            activeId,
+            action.parentId,
+            action.index
+          );
+          break;
+        default:
+          break;
+      }
     },
 
     addBlock: (pageId, options = {}) => {

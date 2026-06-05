@@ -1,7 +1,6 @@
 .sidebar {
-  width: 260px;
-  min-width: 260px;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
   display: flex;
@@ -10,16 +9,26 @@
 }
 
 .header {
-  padding: 16px 14px 10px;
+  padding: 16px 40px 10px 14px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
 .logo {
+  display: inline-block;
   font-weight: 600;
   font-size: 14px;
   color: var(--text-primary);
+  text-decoration: none;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.logo:hover {
+  background: var(--hover-bg);
 }
 
 .section {
@@ -35,20 +44,73 @@
   padding: 4px 6px 8px;
 }
 
-.newPageBtn {
-  width: 100%;
+.newBtnRow {
+  display: flex;
+  gap: 6px;
+}
+
+.newPageBtn,
+.newFolderBtn {
+  flex: 1;
   text-align: left;
   padding: 6px 10px;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
 }
 
-.newPageBtn:hover {
+.newPageBtn:hover,
+.newFolderBtn:hover {
   background: var(--hover-bg);
+}
+
+.treeItemFolder {
+  font-weight: 500;
+}
+
+.pageTitleFolder {
+  font-weight: 600;
+}
+
+.addChildWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.addChildMenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 50;
+  min-width: 120px;
+  margin-top: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.addChildMenu button {
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.addChildMenu button:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
 }
 
 .nav {
@@ -80,6 +142,24 @@
 
 .treeItem.dragging {
   opacity: 0.5;
+}
+
+.treeItemDropTarget {
+  background: rgba(35, 131, 226, 0.12);
+  outline: 2px dashed rgba(35, 131, 226, 0.55);
+  outline-offset: -2px;
+}
+
+.dragOverlayItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  font-size: 13px;
+  color: var(--text-primary);
 }
 
 .expandBtn {

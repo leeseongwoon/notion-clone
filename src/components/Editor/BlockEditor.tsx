@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useNotionStore } from "@/store/useNotionStore";
+import { isFolderPage } from "@/lib/pages";
 import { PageLockGate } from "@/components/PageLock/PageLockGate";
 import { PageSecurityPanel } from "@/components/PageLock/PageSecurityPanel";
+import { FolderView } from "@/components/Folder/FolderView";
 import { BlockCanvas } from "./BlockCanvas";
 import styles from "./BlockEditor.module.css";
 
@@ -27,6 +29,8 @@ export function BlockEditor({ pageId }: BlockEditorProps) {
     );
   }
 
+  const isFolder = isFolderPage(page);
+
   return (
     <PageLockGate pageId={pageId}>
       <article className={styles.editor}>
@@ -36,7 +40,7 @@ export function BlockEditor({ pageId }: BlockEditorProps) {
             className={styles.pageTitleInput}
             value={page.title}
             onChange={(e) => updatePageTitle(pageId, e.target.value)}
-            placeholder="제목 없음"
+            placeholder={isFolder ? "폴더 이름" : "제목 없음"}
             disabled={isPageLocked}
           />
           <div className={styles.pageHeaderActions}>
@@ -61,24 +65,30 @@ export function BlockEditor({ pageId }: BlockEditorProps) {
           </div>
         </div>
 
-        <BlockCanvas
-          pageId={pageId}
-          focusBlockId={focusBlockId}
-          onFocusBlock={setFocusBlockId}
-          menuBlockId={menuBlockId}
-          onMenuBlockIdChange={setMenuBlockId}
-        />
+        {isFolder ? (
+          <FolderView folderId={pageId} />
+        ) : (
+          <>
+            <BlockCanvas
+              pageId={pageId}
+              focusBlockId={focusBlockId}
+              onFocusBlock={setFocusBlockId}
+              menuBlockId={menuBlockId}
+              onMenuBlockIdChange={setMenuBlockId}
+            />
 
-        <button
-          type="button"
-          className={styles.addBlockHint}
-          onClick={() => {
-            const id = addBlock(pageId);
-            setFocusBlockId(id);
-          }}
-        >
-          + 블록을 클릭하거나 Enter로 계속 작성
-        </button>
+            <button
+              type="button"
+              className={styles.addBlockHint}
+              onClick={() => {
+                const id = addBlock(pageId);
+                setFocusBlockId(id);
+              }}
+            >
+              + 블록을 클릭하거나 Enter로 계속 작성
+            </button>
+          </>
+        )}
       </article>
 
       {securityOpen ? (

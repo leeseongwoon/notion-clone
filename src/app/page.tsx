@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { getDefaultPageId } from "@/lib/pages";
 import { useHydrateStore } from "@/hooks/useHydrateStore";
 import { useNotionStore } from "@/store/useNotionStore";
 import styles from "./page.module.css";
@@ -9,20 +10,22 @@ import styles from "./page.module.css";
 export default function HomePage() {
   const router = useRouter();
   const hydrated = useHydrateStore();
+  const pages = useNotionStore((s) => s.pages);
   const rootPageIds = useNotionStore((s) => s.rootPageIds);
   const createPage = useNotionStore((s) => s.createPage);
 
   useEffect(() => {
     if (!hydrated) return;
 
-    if (rootPageIds.length > 0) {
-      router.replace(`/${rootPageIds[0]}`);
+    const defaultId = getDefaultPageId(pages, rootPageIds);
+    if (defaultId) {
+      router.replace(`/${defaultId}`);
       return;
     }
 
     const id = createPage(null);
     router.replace(`/${id}`);
-  }, [hydrated, rootPageIds, router, createPage]);
+  }, [hydrated, pages, rootPageIds, router, createPage]);
 
   return (
     <div className={styles.loading}>
