@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -14,6 +14,7 @@ import { EMPTY_IDS } from "@/lib/constants";
 import {
   computeCanvasHeight,
   getVisibleBlockIds,
+  type BlockLayoutHeights,
 } from "@/lib/blockLayout";
 import { useNotionStore } from "@/store/useNotionStore";
 import { BlockItem } from "./BlockItem";
@@ -37,9 +38,15 @@ export function BlockCanvas({
   const blocks = useNotionStore((s) => s.blocks);
   const rootIds = useNotionStore((s) => s.blockIdsByPage[pageId] ?? EMPTY_IDS);
   const ensureBlockPositions = useNotionStore((s) => s.ensureBlockPositions);
+  const resolvePageBlockOverlaps = useNotionStore(
+    (s) => s.resolvePageBlockOverlaps
+  );
   const moveBlockByDelta = useNotionStore((s) => s.moveBlockByDelta);
 
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [layoutHeights, setLayoutHeights] = useState<BlockLayoutHeights>({});
+  const layoutHeightsRef = useRef<BlockLayoutHeights>({});
+  const resolveRafRef = useRef<number | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
@@ -51,12 +58,43 @@ export function BlockCanvas({
   );
 
   useEffect(() => {
+    layoutHeightsRef.current = {};
+    setLayoutHeights({});
+  }, [pageId]);
+
+  useEffect(() => {
     ensureBlockPositions(pageId);
   }, [pageId, ensureBlockPositions]);
 
+  const scheduleLayoutResolve = useCallback(
+    (heights: BlockLayoutHeights) => {
+      if (resolveRafRef.current != null) {
+        cancelAnimationFrame(resolveRafRef.current);
+      }
+      resolveRafRef.current = requestAnimationFrame(() => {
+        resolveRafRef.current = null;
+        resolvePageBlockOverlaps(pageId, heights);
+      });
+    },
+    [pageId, resolvePageBlockOverlaps]
+  );
+
+  const handleLayoutHeightChange = useCallback(
+    (blockId: string, height: number) => {
+      const prev = layoutHeightsRef.current[blockId];
+      if (prev != null && Math.abs(prev - height) < 2) return;
+
+      layoutHeightsRef.current[blockId] = height;
+      const next = { ...layoutHeightsRef.current };
+      setLayoutHeights(next);
+      scheduleLayoutResolve(next);
+    },
+    [scheduleLayoutResolve]
+  );
+
   const canvasHeight = useMemo(
-    () => computeCanvasHeight(blocks, visibleIds),
-    [blocks, visibleIds]
+    () => computeCanvasHeight(blocks, visibleIds, layoutHeights),
+    [blocks, visibleIds, layoutHeights]
   );
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -67,7 +105,11 @@ export function BlockCanvas({
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, delta } = event;
     if (delta.x !== 0 || delta.y !== 0) {
-      moveBlockByDelta(String(active.id), { x: delta.x, y: delta.y });
+      moveBlockByDelta(
+        String(active.id),
+        { x: delta.x, y: delta.y },
+        layoutHeightsRef.current
+      );
     }
     setActiveId(null);
   };
@@ -109,6 +151,7 @@ export function BlockCanvas({
               menuBlockId={menuBlockId}
               onMenuBlockIdChange={onMenuBlockIdChange}
               isDragOverlay={false}
+              onLayoutHeightChange={handleLayoutHeightChange}
             />
           );
         })}

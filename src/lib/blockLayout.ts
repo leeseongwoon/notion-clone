@@ -29,6 +29,8 @@ export interface BlockBounds {
   height: number;
 }
 
+export type BlockLayoutHeights = Record<string, number>;
+
 /**
  * 캔버스 절대 배치용 슬롯 높이 — CSS 실제 높이(패딩·아이콘·제목)와 맞춤
  */
@@ -50,16 +52,34 @@ export function getBlockCollisionHeight(block: Block): number {
   return heights[block.type] ?? 60;
 }
 
-export function getBlockStackOffset(block: Block): number {
-  return getBlockCollisionHeight(block) + BLOCK_ROW_GAP;
+/** DOM 측정값 우선, 없으면 타입별 최소 높이 */
+export function getBlockLayoutHeight(
+  block: Block,
+  layoutHeights?: BlockLayoutHeights
+): number {
+  const measured = layoutHeights?.[block.id];
+  if (measured != null && measured > 0) {
+    return Math.ceil(measured);
+  }
+  return getBlockCollisionHeight(block);
 }
 
-export function getBlockBounds(block: Block): BlockBounds {
+export function getBlockStackOffset(
+  block: Block,
+  layoutHeights?: BlockLayoutHeights
+): number {
+  return getBlockLayoutHeight(block, layoutHeights) + BLOCK_ROW_GAP;
+}
+
+export function getBlockBounds(
+  block: Block,
+  layoutHeights?: BlockLayoutHeights
+): BlockBounds {
   return {
     x: block.positionX ?? 0,
     y: block.positionY ?? 0,
     width: BLOCK_DEFAULT_WIDTH,
-    height: getBlockCollisionHeight(block),
+    height: getBlockLayoutHeight(block, layoutHeights),
   };
 }
 
@@ -76,12 +96,17 @@ export function blocksOverlap(
   blocks: BlocksMap,
   idA: string,
   idB: string,
-  gap = BLOCK_COLLISION_GAP
+  gap = BLOCK_COLLISION_GAP,
+  layoutHeights?: BlockLayoutHeights
 ): boolean {
   const a = blocks[idA];
   const b = blocks[idB];
   if (!a || !b) return false;
-  return boundsOverlap(getBlockBounds(a), getBlockBounds(b), gap);
+  return boundsOverlap(
+    getBlockBounds(a, layoutHeights),
+    getBlockBounds(b, layoutHeights),
+    gap
+  );
 }
 
 export function getBlockDepth(blocks: BlocksMap, blockId: string): number {
@@ -255,9 +280,16 @@ export function applyGridDragDelta(
   blocks: BlocksMap,
   blockId: string,
   delta: { x: number; y: number },
-  rootIds: string[]
+  rootIds: string[],
+  layoutHeights?: BlockLayoutHeights
 ): BlocksMap {
-  let next = moveGroupWithCollision(blocks, blockId, delta, rootIds);
+  let next = moveGroupWithCollision(
+    blocks,
+    blockId,
+    delta,
+    rootIds,
+    layoutHeights
+  );
   const pageId = blocks[blockId]?.pageId;
   if (!pageId) return next;
 
@@ -461,7 +493,8 @@ function setGroupRootPosition(
 function findFirstOverlapWithGroup(
   blocks: BlocksMap,
   groupRootId: string,
-  otherIds: string[]
+  otherIds: string[],
+  layoutHeights?: BlockLayoutHeights
 ): string | null {
   const groupIds = new Set([
     groupRootId,
@@ -470,7 +503,9 @@ function findFirstOverlapWithGroup(
 
   for (const otherId of otherIds) {
     if (groupIds.has(otherId)) continue;
-    if (blocksOverlap(blocks, groupRootId, otherId)) return otherId;
+    if (blocksOverlap(blocks, groupRootId, otherId, BLOCK_COLLISION_GAP, layoutHeights)) {
+      return otherId;
+    }
   }
   return null;
 }
@@ -480,7 +515,8 @@ export function moveGroupWithCollision(
   blocks: BlocksMap,
   blockId: string,
   delta: { x: number; y: number },
-  rootIds: string[]
+  rootIds: string[],
+  layoutHeights?: BlockLayoutHeights
 ): BlocksMap {
   const block = blocks[blockId];
   if (!block) return blocks;
@@ -497,14 +533,19 @@ export function moveGroupWithCollision(
 
   for (let i = 0; i < BLOCK_MAX_RESOLVE_ITER; i++) {
     const next = setGroupRootPosition(blocks, blockId, rootX, rootY);
-    const hit = findFirstOverlapWithGroup(next, blockId, others);
+    const hit = findFirstOverlapWithGroup(
+      next,
+      blockId,
+      others,
+      layoutHeights
+    );
     if (!hit) {
       const snapped = snapBlockPosition(rootX, rootY);
       return setGroupRootPosition(next, blockId, snapped.x, snapped.y);
     }
 
-    const obstacle = getBlockBounds(next[hit]);
-    const moved = getBlockBounds(next[blockId]);
+    const obstacle = getBlockBounds(next[hit], layoutHeights);
+    const moved = getBlockBounds(next[blockId], layoutHeights);
     const pushDown = obstacle.y + obstacle.height + BLOCK_ROW_GAP - moved.y;
     const pushRight = obstacle.x + obstacle.width + BLOCK_ROW_GAP - moved.x;
 
@@ -513,7 +554,7 @@ export function moveGroupWithCollision(
     } else if (pushRight > 0) {
       rootX += pushRight;
     } else {
-      rootY += getBlockStackOffset(block);
+      rootY += getBlockStackOffset(block, layoutHeights);
     }
   }
 
@@ -525,7 +566,8 @@ export function moveGroupWithCollision(
 export function resolvePageCollisions(
   blocks: BlocksMap,
   pageId: string,
-  rootIds: string[]
+  rootIds: string[],
+  layoutHeights?: BlockLayoutHeights
 ): BlocksMap {
   let next = { ...blocks };
   const visible = getVisibleBlockIds(next, rootIds).filter(
@@ -547,16 +589,19 @@ export function resolvePageCollisions(
       for (let j = i + 1; j < sorted.length; j++) {
         const idA = sorted[i];
         const idB = sorted[j];
-        if (!blocksOverlap(next, idA, idB)) continue;
+        if (!blocksOverlap(next, idA, idB, BLOCK_COLLISION_GAP, layoutHeights)) {
+          continue;
+        }
 
-        const boundsA = getBlockBounds(next[idA]);
+        const boundsA = getBlockBounds(next[idA], layoutHeights);
         const bBlock = next[idB];
         if (!bBlock) continue;
 
         next[idB] = {
           ...bBlock,
-          positionY:
-            boundsA.y + boundsA.height + BLOCK_COLLISION_GAP + BLOCK_COLLISION_BUFFER,
+          positionY: snapYToGrid(
+            boundsA.y + boundsA.height + BLOCK_COLLISION_GAP + BLOCK_COLLISION_BUFFER
+          ),
         };
         changed = true;
       }
@@ -572,7 +617,8 @@ export function findFreePosition(
   pageId: string,
   rootIds: string[],
   proposed: { x: number; y: number },
-  excludeIds: string[] = []
+  excludeIds: string[] = [],
+  layoutHeights?: BlockLayoutHeights
 ): { x: number; y: number } {
   const exclude = new Set(excludeIds);
   const visible = getVisibleBlockIds(blocks, rootIds).filter(
@@ -593,13 +639,13 @@ export function findFreePosition(
       positionX: x,
       positionY: y,
     };
-    const probeBounds = getBlockBounds(probe);
+    const probeBounds = getBlockBounds(probe, layoutHeights);
     let hit: BlockBounds | null = null;
 
     for (const id of visible) {
       const other = blocks[id];
       if (!other) continue;
-      const ob = getBlockBounds(other);
+      const ob = getBlockBounds(other, layoutHeights);
       if (boundsOverlap(probeBounds, ob)) {
         hit = ob;
         break;
@@ -616,7 +662,8 @@ export function findFreePosition(
 
 export function computeCanvasHeight(
   blocks: BlocksMap,
-  visibleIds: string[]
+  visibleIds: string[],
+  layoutHeights?: BlockLayoutHeights
 ): number {
   let max = 320;
   for (const id of visibleIds) {
@@ -624,16 +671,19 @@ export function computeCanvasHeight(
     if (!b) continue;
     max = Math.max(
       max,
-      (b.positionY ?? 0) + getBlockCollisionHeight(b) + 48
+      (b.positionY ?? 0) + getBlockLayoutHeight(b, layoutHeights) + 48
     );
   }
   return max;
 }
 
-export function getPlacementBelowBlock(block: Block): { x: number; y: number } {
+export function getPlacementBelowBlock(
+  block: Block,
+  layoutHeights?: BlockLayoutHeights
+): { x: number; y: number } {
   return {
     x: block.positionX ?? 0,
-    y: (block.positionY ?? 0) + getBlockStackOffset(block),
+    y: (block.positionY ?? 0) + getBlockStackOffset(block, layoutHeights),
   };
 }
 
@@ -661,18 +711,19 @@ export function resolveNewBlockPosition(
   pageId: string,
   rootIds: string[],
   refBlock: Block | null,
-  parentId: string | null
+  parentId: string | null,
+  layoutHeights?: BlockLayoutHeights
 ): { x: number; y: number } {
   let proposed: { x: number; y: number };
 
   if (refBlock) {
-    proposed = getPlacementBelowBlock(refBlock);
+    proposed = getPlacementBelowBlock(refBlock, layoutHeights);
   } else if (parentId) {
     const parent = blocks[parentId];
     proposed = parent
       ? {
           x: (parent.positionX ?? 0) + BLOCK_INDENT,
-          y: (parent.positionY ?? 0) + getBlockStackOffset(parent),
+          y: (parent.positionY ?? 0) + getBlockStackOffset(parent, layoutHeights),
         }
       : { x: 0, y: 0 };
   } else {
@@ -683,7 +734,7 @@ export function resolveNewBlockPosition(
       if (b?.pageId === pageId) {
         maxY = Math.max(
           maxY,
-          (b.positionY ?? 0) + getBlockStackOffset(b)
+          (b.positionY ?? 0) + getBlockStackOffset(b, layoutHeights)
         );
       }
     }
@@ -698,5 +749,5 @@ export function resolveNewBlockPosition(
         : 0,
     y: proposed.y,
   };
-  return findFreePosition(blocks, pageId, rootIds, aligned);
+  return findFreePosition(blocks, pageId, rootIds, aligned, [], layoutHeights);
 }

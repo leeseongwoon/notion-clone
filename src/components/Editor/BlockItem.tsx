@@ -1,6 +1,14 @@
 "use client";
 
-import { useRef, useEffect, useState, KeyboardEvent, CSSProperties } from "react";
+import {
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+  KeyboardEvent,
+  CSSProperties,
+} from "react";
 import { useDraggable } from "@dnd-kit/core";
 import {
   BLOCK_DEFAULT_WIDTH,
@@ -30,6 +38,7 @@ interface BlockItemProps {
   menuBlockId: string | null;
   onMenuBlockIdChange: (id: string | null) => void;
   isDragOverlay?: boolean;
+  onLayoutHeightChange?: (blockId: string, height: number) => void;
 }
 
 function getBlockRowStyle(block: Block): CSSProperties {
@@ -50,6 +59,7 @@ export function BlockItem({
   menuBlockId,
   onMenuBlockIdChange,
   isDragOverlay = false,
+  onLayoutHeightChange,
 }: BlockItemProps) {
   const updateBlock = useNotionStore((s) => s.updateBlock);
   const convertBlockType = useNotionStore((s) => s.convertBlockType);
@@ -61,11 +71,13 @@ export function BlockItem({
   const toggleBlockCollapsed = useNotionStore((s) => s.toggleBlockCollapsed);
 
   const editableRef = useRef<HTMLDivElement>(null);
-  const handleRef = useRef<HTMLButtonElement | null>(null);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState("");
   const [slashIndex, setSlashIndex] = useState(0);
-
+  const [isMultiLine, setIsMultiLine] = useState(false);
   const menuOpen = menuBlockId === block.id;
   const def = BLOCK_DEF_BY_TYPE[block.type];
   const isDivider = block.type === "divider";
@@ -84,13 +96,107 @@ export function BlockItem({
 
   const dragX = isDragOverlay ? 0 : (transform?.x ?? 0);
   const dragY = isDragOverlay ? 0 : (transform?.y ?? 0);
-  const slotHeight = getBlockCollisionHeight(block);
+  const minBlockHeight = getBlockCollisionHeight(block);
+
+  const setRootRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      rootRef.current = node;
+      if (!isDragOverlay) setNodeRef(node);
+    },
+    [isDragOverlay, setNodeRef]
+  );
+
+  const clearAlignMargins = useCallback((row: HTMLElement) => {
+    row
+      .querySelectorAll<HTMLElement>(
+        `.${styles.blockControls}, .${styles.listMarker}, .${styles.calloutIcon}, .${styles.toggleBtn}, .${styles.todoCheck}`
+      )
+      .forEach((el) => {
+        el.style.marginTop = "";
+      });
+  }, []);
+
+  const syncRowAlign = useCallback(() => {
+    const row = rootRef.current;
+    const editable = editableRef.current;
+    const controls = controlsRef.current;
+    if (!row || !editable || !controls || isDivider) return;
+
+    const style = getComputedStyle(editable);
+    const lineHeight = parseFloat(style.lineHeight);
+    const paddingTop = parseFloat(style.paddingTop);
+    const paddingBottom = parseFloat(style.paddingBottom);
+    const safeLineHeight = Number.isFinite(lineHeight) ? lineHeight : 26;
+    const singleLineMax = safeLineHeight + paddingTop + paddingBottom + 4;
+    const multi = editable.scrollHeight > singleLineMax;
+
+    setIsMultiLine(multi);
+
+    if (!multi) {
+      clearAlignMargins(row);
+      return;
+    }
+
+    const rowRect = row.getBoundingClientRect();
+    const editableRect = editable.getBoundingClientRect();
+    const firstLineTop = editableRect.top - rowRect.top + paddingTop;
+    const firstLineCenter = firstLineTop + safeLineHeight / 2;
+
+    const setMarginTop = (el: HTMLElement | null, height: number) => {
+      if (!el) return;
+      el.style.marginTop = `${Math.max(0, firstLineCenter - height / 2)}px`;
+    };
+
+    controls.style.marginTop = "10px";
+
+    row.querySelectorAll<HTMLElement>(`.${styles.listMarker}`).forEach((el) => {
+      el.style.marginTop = `${firstLineTop}px`;
+    });
+
+    row.querySelectorAll<HTMLElement>(`.${styles.calloutIcon}`).forEach((el) => {
+      setMarginTop(el, el.offsetHeight || 20);
+    });
+
+    row.querySelectorAll<HTMLElement>(`.${styles.toggleBtn}`).forEach((el) => {
+      setMarginTop(el, el.offsetHeight || 24);
+    });
+
+    row.querySelectorAll<HTMLElement>(`.${styles.todoCheck}`).forEach((el) => {
+      setMarginTop(el, 16);
+    });
+  }, [clearAlignMargins, isDivider]);
+
+  useEffect(() => {
+    if (isDragOverlay) return;
+    const el = rootRef.current;
+    if (!el) return;
+
+    const report = () => {
+      const height = Math.ceil(el.getBoundingClientRect().height);
+      if (height > 0) onLayoutHeightChange?.(block.id, height);
+      syncRowAlign();
+    };
+
+    report();
+    const observer = new ResizeObserver(() => report());
+    observer.observe(el);
+    const editable = editableRef.current;
+    if (editable) observer.observe(editable);
+    return () => observer.disconnect();
+  }, [
+    block.id,
+    block.content,
+    block.type,
+    isDragOverlay,
+    onLayoutHeightChange,
+    syncRowAlign,
+  ]);
 
   const canvasStyle: CSSProperties = isDragOverlay
     ? {
         position: "relative",
         width: BLOCK_DEFAULT_WIDTH,
-        minHeight: slotHeight,
+        minHeight: minBlockHeight,
         boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
         borderRadius: 6,
         boxSizing: "border-box",
@@ -101,7 +207,7 @@ export function BlockItem({
         top: (block.positionY ?? 0) + dragY,
         width: BLOCK_DEFAULT_WIDTH,
         maxWidth: "calc(100% - 40px)",
-        minHeight: slotHeight,
+        minHeight: minBlockHeight,
         boxSizing: "border-box",
         zIndex: isDragging ? 30 : 1,
         opacity: isDragging ? 0.35 : 1,
@@ -116,6 +222,19 @@ export function BlockItem({
       editableRef.current.textContent = block.content;
     }
   }, [block.id, block.type, def.editable]);
+
+  useLayoutEffect(() => {
+    if (!isDragOverlay && !isDivider) {
+      syncRowAlign();
+    }
+  }, [
+    block.content,
+    block.type,
+    block.checked,
+    isDragOverlay,
+    isDivider,
+    syncRowAlign,
+  ]);
 
   useEffect(() => {
     if (focusBlockId !== block.id || !def.editable || !editableRef.current) {
@@ -169,6 +288,7 @@ export function BlockItem({
     }
 
     syncContent(slash?.active ? "" : text);
+    requestAnimationFrame(syncRowAlign);
   };
 
   const handleAddBelow = () => {
@@ -202,17 +322,15 @@ export function BlockItem({
       isDragging={isDragging}
       menuOpen={menuOpen}
       onToggleMenu={handleToggleMenu}
-      onHandleRef={(el) => {
-        handleRef.current = el;
-      }}
+      onHandleRef={setMenuAnchorEl}
     />
   );
 
-  const renderMenu = () =>
-    menuOpen ? (
+  const actionMenu =
+    menuOpen && menuAnchorEl ? (
       <BlockActionMenu
         block={block}
-        anchorEl={handleRef.current}
+        anchorEl={menuAnchorEl}
         onClose={() => onMenuBlockIdChange(null)}
         onBackgroundColor={(color) =>
           updateBlock(block.id, { backgroundColor: color })
@@ -298,11 +416,11 @@ export function BlockItem({
   if (isDivider) {
     return (
       <div
-        ref={isDragOverlay ? undefined : setNodeRef}
+        ref={isDragOverlay ? undefined : setRootRef}
         style={{ ...canvasStyle, ...rowStyle }}
         className={`${styles.canvasBlock} ${styles.blockRow} ${styles.dividerRow} ${hasCustomBg ? styles.hasCustomBg : ""}`}
       >
-        <div className={styles.blockControls}>
+        <div ref={controlsRef} className={styles.blockControls}>
           {!isDragOverlay && (
             <button
               type="button"
@@ -316,7 +434,7 @@ export function BlockItem({
           {renderHandle()}
         </div>
         <hr className={styles.divider} />
-        {renderMenu()}
+        {actionMenu}
       </div>
     );
   }
@@ -333,11 +451,11 @@ export function BlockItem({
 
   return (
     <div
-      ref={isDragOverlay ? undefined : setNodeRef}
+      ref={isDragOverlay ? undefined : setRootRef}
       style={{ ...canvasStyle, ...rowStyle }}
-      className={`${styles.canvasBlock} ${rowClass}`}
+      className={`${styles.canvasBlock} ${isMultiLine ? styles.multiLine : ""} ${rowClass}`}
     >
-      <div className={styles.blockControls}>
+      <div ref={controlsRef} className={styles.blockControls}>
         {!isDragOverlay && (
           <button
             type="button"
@@ -351,7 +469,7 @@ export function BlockItem({
         {renderHandle()}
       </div>
 
-        {block.type === "toggle" && (
+      {block.type === "toggle" && (
           <button
             type="button"
             className={styles.toggleBtn}
@@ -406,7 +524,7 @@ export function BlockItem({
             />
           )}
         </div>
-      {renderMenu()}
+      {actionMenu}
     </div>
   );
 }

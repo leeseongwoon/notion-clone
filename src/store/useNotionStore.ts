@@ -15,9 +15,12 @@ import {
   BLOCK_INDENT,
   findFreePosition,
   getPlacementBelowBlock,
+  getVisibleBlockIds,
   initMissingGridPositions,
   resolveNewBlockPosition,
+  resolvePageCollisions,
   snapBlockPosition,
+  type BlockLayoutHeights,
 } from "@/lib/blockLayout";
 import {
   computeIsPageLocked,
@@ -103,9 +106,14 @@ interface NotionStore extends PersistedState {
     >
   ) => void;
   ensureBlockPositions: (pageId: string) => void;
+  resolvePageBlockOverlaps: (
+    pageId: string,
+    layoutHeights?: BlockLayoutHeights
+  ) => void;
   moveBlockByDelta: (
     blockId: string,
-    delta: { x: number; y: number }
+    delta: { x: number; y: number },
+    layoutHeights?: BlockLayoutHeights
   ) => void;
   convertBlockType: (blockId: string, type: BlockType) => void;
   duplicateBlock: (blockId: string) => string;
@@ -691,6 +699,13 @@ export const useNotionStore = create<NotionStore>((set, get) => {
           blocks: { ...state.blocks, [blockId]: { ...block, ...updates } },
         };
       });
+
+      const affectsLayout =
+        "content" in updates || "type" in updates || "checked" in updates;
+      if (affectsLayout) {
+        const pageId = get().blocks[blockId]?.pageId;
+        if (pageId) get().resolvePageBlockOverlaps(pageId);
+      }
     },
 
     ensureBlockPositions: (pageId) => {
@@ -703,9 +718,38 @@ export const useNotionStore = create<NotionStore>((set, get) => {
         );
         return { blocks };
       });
+      get().resolvePageBlockOverlaps(pageId);
     },
 
-    moveBlockByDelta: (blockId, delta) => {
+    resolvePageBlockOverlaps: (pageId, layoutHeights) => {
+      set((state) => {
+        const rootIds = state.blockIdsByPage[pageId] ?? [];
+        const resolved = resolvePageCollisions(
+          state.blocks,
+          pageId,
+          rootIds,
+          layoutHeights
+        );
+        const visible = getVisibleBlockIds(resolved, rootIds).filter(
+          (id) => resolved[id]?.pageId === pageId
+        );
+
+        const changed = visible.some((id) => {
+          const before = state.blocks[id];
+          const after = resolved[id];
+          if (!before || !after) return false;
+          return (
+            before.positionY !== after.positionY ||
+            before.positionX !== after.positionX
+          );
+        });
+
+        if (!changed) return state;
+        return { blocks: resolved };
+      });
+    },
+
+    moveBlockByDelta: (blockId, delta, layoutHeights) => {
       if (delta.x === 0 && delta.y === 0) return;
 
       set((state) => {
@@ -717,11 +761,15 @@ export const useNotionStore = create<NotionStore>((set, get) => {
           state.blocks,
           blockId,
           delta,
-          rootIds
+          rootIds,
+          layoutHeights
         );
 
         return { blocks };
       });
+
+      const pageId = get().blocks[blockId]?.pageId;
+      if (pageId) get().resolvePageBlockOverlaps(pageId, layoutHeights);
     },
 
     convertBlockType: (blockId, type) => {
@@ -737,6 +785,8 @@ export const useNotionStore = create<NotionStore>((set, get) => {
         };
         return { blocks: { ...state.blocks, [blockId]: next } };
       });
+      const pageId = get().blocks[blockId]?.pageId;
+      if (pageId) get().resolvePageBlockOverlaps(pageId);
     },
 
     duplicateBlock: (blockId) => {

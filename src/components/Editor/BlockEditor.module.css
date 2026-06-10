@@ -159,12 +159,30 @@
   align-items: stretch;
 }
 
-.canvasBlock .blockRow {
+.canvasBlock.blockRow {
   width: 100%;
   min-height: inherit;
   flex: 1;
   align-items: center;
   padding: 8px 6px;
+}
+
+/* 여러 줄일 때만 첫 줄 기준 위쪽 정렬 */
+.canvasBlock.blockRow.multiLine {
+  align-items: flex-start;
+}
+
+.canvasBlock.blockRow.multiLine .blockControls,
+.canvasBlock.blockRow.multiLine .listMarker,
+.canvasBlock.blockRow.multiLine .toggleBtn,
+.canvasBlock.blockRow.multiLine .todoCheck,
+.canvasBlock.blockRow.multiLine .calloutIcon {
+  align-self: flex-start;
+}
+
+.canvasBlock .blockBody {
+  flex: 1;
+  min-width: 0;
 }
 
 /* 절대 배치 시 margin이 겹침 계산을 깨뜨리지 않도록 */
@@ -178,12 +196,15 @@
 
 .blockRow {
   display: flex;
-  align-items: center;
   gap: 6px;
   border-radius: 4px;
   padding: 8px 6px;
   position: relative;
   min-height: 36px;
+}
+
+.blockRow:not(.canvasBlock) {
+  align-items: center;
 }
 
 .blockRow:not(.hasCustomBg):hover {
@@ -206,12 +227,15 @@
 .blockControls {
   display: flex;
   align-items: center;
-  align-self: center;
   gap: 0;
   width: 52px;
   flex-shrink: 0;
   opacity: 0;
   transition: opacity 0.12s;
+}
+
+.blockRow:not(.canvasBlock) .blockControls {
+  align-self: center;
 }
 
 .addBtn,
@@ -356,8 +380,11 @@
 
 .calloutIcon {
   flex-shrink: 0;
-  align-self: center;
   line-height: 1;
+}
+
+.blockRow:not(.canvasBlock) .calloutIcon {
+  align-self: center;
 }
 
 .listMarker {
@@ -368,6 +395,9 @@
   flex-shrink: 0;
   font-size: 16px;
   line-height: 1.65;
+}
+
+.blockRow:not(.canvasBlock) .listMarker {
   align-self: center;
 }
 
@@ -379,6 +409,9 @@
   padding: 6px 4px;
   font-size: 12px;
   flex-shrink: 0;
+}
+
+.blockRow:not(.canvasBlock) .toggleBtn {
   align-self: center;
 }
 
@@ -387,8 +420,11 @@
   cursor: pointer;
   width: 16px;
   height: 16px;
-  align-self: center;
   margin: 0;
+}
+
+.blockRow:not(.canvasBlock) .todoCheck {
+  align-self: center;
 }
 
 .todoDone .editable {
